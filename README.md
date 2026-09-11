@@ -1,4 +1,4 @@
-# Hide n Seat 🎯
+# Hide n Seat 
 
 ### Enterprise Gaze-Mitigation & Classroom Topology Optimization Engine
 
@@ -48,13 +48,32 @@ Open the local URL shown in the terminal (typically `http://localhost:5173`) in 
 
 ## Project Documentation
 
+## Hide n Seat™ — Architecture Workflow
+
+Camera feed (live classroom video)
+        ↓
+Object detection — COCO-SSD: chair + person
+        ↓
+Tracking — stable IDs across frames
+        ↓
+Occupancy matching — person to chair mapping
+        ↓
+Visibility scoring — FOV + occlusion ("meat shield")
+        ↓
+Shared detection state (read by both screens)
+        ↓
+   ┌────────────────────────┴────────────────────────┐
+   ↓                                                   ↓
+Screen 1: Surveillance                      Screen 2: Musical Chairs
+Emoji risk badges on live feed              Music → roaming indicator →
+                                             random selection → confirm/
+                                             redo (max 2) → reveal
+
 ### For Software:
 
 #### Screenshots
-![Screenshot1](Add screenshot here)
-*Add caption explaining what this shows*
 
+####screenshots and demos :https://drive.google.com/file/d/1T6bswJhPsORJlBP7vnqx-tKKNLq_9066/view?usp=sharing
 ## Project Demo
 
-### Video
-[Add your demo video link here]
+
