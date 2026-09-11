@@ -3,6 +3,8 @@ import { CentroidTracker, resetIdCounter } from '../core/tracker';
 import { computeOccupancy } from '../core/occupancy';
 import { computeScreenVisibility, inferFacingDeg } from '../core/screenVisibility';
 import { computeSuggestions, SuggestionStabiliser } from '../core/suggestions';
+import { logRawDetections, logTick } from '../core/diagnostics';
+import { roomReferencePoint } from '../core/roomConfig';
 import { detectFrame, loadDetector, type DetectorStatus } from './detector';
 import type { Point, TickResult } from '../models/types';
 
@@ -76,7 +78,11 @@ export function useScanEngine(grabFrame: () => HTMLCanvasElement | null) {
 
       // Fixed reference point instead of a user click. Derived from frame size, so
       // it lands in the same relative spot at any camera resolution.
-  
+      const teacherPoint = roomReferencePoint(frame.width, frame.height);
+
+      // Cone direction is inferred from where the chairs actually are, rather than
+      // asking for a second click. Falls back to facing down-frame with no chairs.
+      const facingDeg = inferFacingDeg(teacherPoint, confirmedChairs);
 
       // No longer gated on anything: every confirmed chair is always scored.
       const seatStates = computeScreenVisibility({

@@ -8,10 +8,14 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   canOfferRedo,
+  CONFIRM_NO,
+  CONFIRM_PROMPT,
+  CONFIRM_YES,
   FORCED_LOCK_TEXT,
   nextRedoAction,
   REDO_LIMIT,
   redosLeft,
+  SELECTIONS_PER_TURN,
   selectionNumber,
 } from '../src/core/seatConfirm';
 import {
@@ -836,6 +840,23 @@ section('9. SEAT CONFIRM / REDO WRAPPER');
   // with and the force-lock beat can never be reached.
   check('prompt still offered on selection 3, so the 3rd rejection is possible',
     canOfferRedo(REDO_LIMIT, false), `used ${REDO_LIMIT}, not settled`);
+
+  // Part B: the prompt must appear on EVERY completed selection, no exceptions.
+  // Walked over every reachable count rather than spot-checked, so a future
+  // "only after the first scan" regression fails here.
+  const promptOn: number[] = [];
+  for (let used = 0; used < SELECTIONS_PER_TURN; used++) {
+    if (canOfferRedo(used, false)) promptOn.push(selectionNumber(used));
+  }
+  check('prompt appears on every selection of the turn, 1st through last',
+    promptOn.length === SELECTIONS_PER_TURN,
+    `shown on selections ${promptOn.join(', ')} of ${SELECTIONS_PER_TURN}`);
+  check('the final selection is included, not skipped straight to force-lock',
+    promptOn.includes(SELECTIONS_PER_TURN),
+    `selection ${SELECTIONS_PER_TURN} prompts, then No -> force-lock`);
+  check('prompt visibility does not depend on the redo count',
+    new Set([0, 1, 2].map((u) => canOfferRedo(u, false))).size === 1,
+    'identical on all three selections');
   check('prompt withdrawn once the seat is settled — hard stop, no buttons',
     !canOfferRedo(REDO_LIMIT, true), 'settled -> no confirm/reject');
   check('confirming early also withdraws the prompt',
@@ -854,6 +875,11 @@ section('9. SEAT CONFIRM / REDO WRAPPER');
   // Consolidation: exactly one ending caption, and it is not either retired one.
   check('forced-lock caption is MADUTHILLE BROO',
     FORCED_LOCK_TEXT === 'MADUTHILLE BROO', FORCED_LOCK_TEXT);
+  check('confirm prompt is the Malayalam question',
+    CONFIRM_PROMPT === '\u0d09\u0d31\u0d2a\u0d4d\u0d2a\u0d3f\u0d15\u0d4d\u0d15\u0d1f\u0d4d\u0d1f\u0d46?',
+    CONFIRM_PROMPT);
+  check('answers are labelled Yes and No',
+    CONFIRM_YES === 'Yes' && CONFIRM_NO === 'No', `${CONFIRM_YES} / ${CONFIRM_NO}`);
   // Scan the shipped source rather than asserting against the constant, which
   // would only ever prove the constant is itself. This is what actually enforces
   // "only one version of this flow exists".
@@ -861,9 +887,11 @@ section('9. SEAT CONFIRM / REDO WRAPPER');
     ['\u0065vdelum', 'original confirm/redo ending'],
     ['iriyadoo', 'original confirm/redo ending'],
     ['\u0d2e\u0d1f\u0d41\u0d24\u0d4d\u0d24\u0d41', 'rescan-era Malayalam fatigue line'],
-    ['MADUTHU BROO', 'rescan-era ending'],
+    ['MADUTHU BROO', 'shortened rescan-era ending'],
+    ['MADUTHILE', 'misspelled single-L variant'],
     ['nextRescanAction', 'rescan-era logic'],
     ['canOfferRescan', 'rescan-era logic'],
+    ['FATIGUE_TEXT', 'rescan-era caption constant'],
   ];
 
   const srcFiles: string[] = [];
@@ -887,6 +915,17 @@ section('9. SEAT CONFIRM / REDO WRAPPER');
 
   check('the old rescan module is deleted',
     !existsSync(join(process.cwd(), 'src/core/rescan.ts')), 'src/core/rescan.ts');
+
+  // "MADUTHILLE BROO is the ONLY ending caption" — proved by counting where the
+  // literal is declared. One declaration, in the flow module, and every render
+  // site refers to that constant rather than repeating the string.
+  const literalSites = srcFiles.filter((f) => readFileSync(f, 'utf8').includes(FORCED_LOCK_TEXT));
+  check('the ending caption is declared exactly once in src/',
+    literalSites.length === 1,
+    literalSites.map((h) => h.split(/[\\/]/).pop()).join(', ') || 'none');
+  check('it is declared in the flow module, not a component',
+    literalSites[0]?.endsWith('seatConfirm.ts') === true,
+    literalSites[0]?.split(/[\\/]/).pop() ?? 'missing');
   // Compared as strings: TS narrows both consts to literal types and would
   // otherwise reject the comparison as provably true.
   check('seat-fixed and forced-lock end-states have different captions',

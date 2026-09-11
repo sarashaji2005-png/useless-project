@@ -20,6 +20,19 @@
 export const REDO_LIMIT = 2;
 
 /**
+ * The confirm prompt, shown on EVERY completed selection without exception.
+ *
+ * Malayalam: "shall I lock it in?". Answered with `CONFIRM_YES` / `CONFIRM_NO`.
+ */
+export const CONFIRM_PROMPT = 'ഉറപ്പിക്കട്ടെ?';
+
+/** Yes -> lock the seat. */
+export const CONFIRM_YES = 'Yes';
+
+/** No -> redo, or force-lock if the allowance is spent. */
+export const CONFIRM_NO = 'No';
+
+/**
  * Caption when the user is out of redos and the 3rd chair is force-locked.
  *
  * Hard stop: no buttons after this. This is the ONLY ending caption in the flow;
@@ -62,3 +75,11 @@ export function redosLeft(used: number): number {
 export function selectionNumber(used: number): number {
   return used + 1;
 }
+
+/**
+ * Total selections a single turn can produce: the first plus every redo.
+ *
+ * The prompt must appear on all of them, the last one included — only the answer
+ * differs there, No leading to the force-lock rather than a fourth round.
+ */
+export const SELECTIONS_PER_TURN = REDO_LIMIT + 1;

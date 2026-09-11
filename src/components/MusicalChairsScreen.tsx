@@ -20,6 +20,9 @@ import { AUTO_COOLDOWN_MS, NewPersonWatcher } from '../core/personWatcher';
 import { logChairCoverage, logSelection } from '../core/diagnostics';
 import {
   canOfferRedo,
+  CONFIRM_NO,
+  CONFIRM_PROMPT,
+  CONFIRM_YES,
   FORCED_LOCK_TEXT,
   nextRedoAction,
   REDO_LIMIT,
@@ -96,6 +99,24 @@ export function MusicalChairsScreen({
 
   /** Seat decided, either way. No further buttons in this turn. */
   const settled = phase === 'locked' || phase === 'forceLocked';
+
+  /**
+   * A selection has completed and is waiting on an answer.
+   *
+   * `finish()` sets `revealed` on every single completed selection — the first and
+   * each redo alike — so this is true once per selection, unconditionally, and is
+   * the only thing the prompt is gated on.
+   */
+  const awaitingAnswer = phase === 'revealed';
+
+  /**
+   * Whether the Yes/No prompt is on screen.
+   *
+   * Deliberately NOT conditioned on `redoUsed`: `canOfferRedo` returns true for
+   * every count up to and including the spent one, so the prompt is identical on
+   * all three selections.
+   */
+  const promptVisible = awaitingAnswer && canOfferRedo(redoUsed, settled);
 
   /** The chair highlight and card are on screen for all three of these. */
   const showingReveal = phase === 'revealed' || settled;
@@ -330,11 +351,17 @@ export function MusicalChairsScreen({
     if (arrivals.length === 0) return;
     if (!autoEnabled) return;
     if (phase === 'playing') return;
+    // An unanswered prompt outranks the cooldown. AUTO_COOLDOWN_MS is only 5s, so
+    // without this a passer-by 5 seconds after a selection would wipe the prompt
+    // AND silently reset the redo count — which is exactly the "prompt only shows
+    // sometimes / only on the first attempt" failure. The prompt now blocks
+    // re-triggering until it is answered; manual Start Music is still the escape.
+    if (awaitingAnswer) return;
     if (performance.now() < lockedUntilRef.current) return;
 
     // A new arrival is a new person's turn, so the redo count starts fresh.
     beginTurn();
-  }, [scan.lastResult, autoEnabled, phase, beginTurn]);
+  }, [scan.lastResult, autoEnabled, phase, awaitingAnswer, beginTurn]);
 
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D, d: StageDims) => {
@@ -472,7 +499,69 @@ export function MusicalChairsScreen({
         // score share one card so they read as a single focal point rather than
         // two competing labels.
         const cap = captionTransform(elapsed);
-        if (cap.visible) {
+
+        if (phase === 'forceLocked' && cap.visible) {
+          // ---- final screen state: one huge caption, nothing competing --------
+          // Deliberately NOT the score card. This is the end of the turn, so the
+          // caption is the whole screen rather than a line inside a panel.
+          const scrim = 0.55 * cap.alpha;
+          ctx.fillStyle = withAlpha(palette.bg, scrim);
+          ctx.fillRect(0, 0, d.cssW, d.cssH);
+
+          // Sized to the frame, then shrunk if it would touch the edges, so a long
+          // caption or a narrow window cannot clip it.
+          let bigPx = Math.max(40, Math.round(d.cssW * 0.062));
+          const maxW = d.cssW * 0.86;
+          ctx.font = playfulIntlFont(bigPx);
+          if (ctx.measureText(FORCED_LOCK_TEXT).width > maxW) {
+            bigPx = Math.floor(bigPx * (maxW / ctx.measureText(FORCED_LOCK_TEXT).width));
+            ctx.font = playfulIntlFont(bigPx);
+          }
+
+          const subPx = Math.max(11, Math.round(d.cssW * 0.0125));
+          // Clamped so the caption and the line beneath it always fit in frame.
+          // The tilt and the pop-in overshoot both push past the nominal box, hence
+          // the generous allowance rather than exactly half the cap height.
+          const below = bigPx * 0.78 + subPx;
+          const cy = Math.min(d.cssH * 0.66, d.cssH - below - bigPx * 0.4);
+
+          ctx.save();
+          ctx.translate(d.cssW / 2, cy);
+          // A touch of tilt and the pop-in overshoot: dramatic, not static.
+          ctx.rotate(-0.022 + cap.rotation * 0.5);
+          ctx.scale(cap.scale, cap.scale);
+          ctx.globalAlpha = cap.alpha;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          // Layered glow, then a dark outline, then the fill. The outline is what
+          // keeps it readable where it crosses the bright chair halo.
+          ctx.shadowColor = withAlpha(palette.playful, 0.95);
+          ctx.shadowBlur = bigPx * 0.55;
+          ctx.lineJoin = 'round';
+          ctx.strokeStyle = withAlpha(palette.bg, 0.9);
+          ctx.lineWidth = Math.max(6, bigPx * 0.13);
+          ctx.strokeText(FORCED_LOCK_TEXT, 0, 0);
+
+          ctx.shadowBlur = bigPx * 0.3;
+          ctx.fillStyle = palette.playfulBright;
+          ctx.fillText(FORCED_LOCK_TEXT, 0, 0);
+          ctx.restore();
+
+          // The seat is still the outcome, so it stays — small, under the caption,
+          // subordinate to it rather than boxed up beside it.
+          const sub = `${pick.seatId} · LOCKED · ${
+            reveal?.score == null ? '--/100' : formatScore(reveal.score)
+          }`;
+          ctx.save();
+          ctx.globalAlpha = cap.alpha;
+          ctx.font = monoFont(subPx, 'bold');
+          ctx.fillStyle = withAlpha(palette.textBright, 0.75);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(sub, d.cssW / 2, cy + bigPx * 0.78);
+          ctx.restore();
+        } else if (cap.visible) {
           const titlePx = Math.max(20, Math.round(d.cssW * 0.030));
           const scorePx = Math.max(26, Math.round(d.cssW * 0.040));
           const labelPx = Math.max(9, Math.round(d.cssW * 0.0105));
@@ -481,14 +570,9 @@ export function MusicalChairsScreen({
             ? '--/100'
             : formatScore(reveal.score);
 
-          // One card, one caption. Exactly one of these three is ever on screen,
-          // so the retired flows' text can never appear alongside the current one.
-          const title =
-            phase === 'forceLocked'
-              ? FORCED_LOCK_TEXT
-              : phase === 'locked'
-                ? REVEAL_TEXT
-                : REVEAL_TITLE;
+          // forceLocked never reaches here — it has its own full-screen treatment
+          // above. Exactly one caption is ever on screen.
+          const title = phase === 'locked' ? REVEAL_TEXT : REVEAL_TITLE;
 
           // Malayalam-capable stack: Comic Sans carries no Malayalam glyphs, so
           // without the fallback this measures and paints as tofu boxes.
@@ -499,9 +583,22 @@ export function MusicalChairsScreen({
           ctx.font = monoFont(labelPx, 'bold');
           const labelW = ctx.measureText(RISK_LABEL).width;
 
+          // The question rides on the card so it is next to the score, with the
+          // Yes/No buttons answering it. Smaller than the title: it is a prompt,
+          // not the punchline.
+          const promptPx = Math.round(titlePx * 0.66);
+          ctx.font = playfulIntlFont(promptPx);
+          const promptW = promptVisible ? ctx.measureText(CONFIRM_PROMPT).width : 0;
+
           const padX = Math.round(titlePx * 0.8);
-          const boxW = Math.max(titleW, scoreW, labelW) + padX * 2;
-          const boxH = Math.round(titlePx * 1.5 + scorePx * 1.25 + labelPx * 2.2);
+          const boxW = Math.max(titleW, scoreW, labelW, promptW) + padX * 2;
+
+          // Stacked from the top so adding the prompt row cannot overlap the score.
+          const rowTitle = titlePx * 1.5;
+          const rowLabel = labelPx * 2.2;
+          const rowScore = scorePx * 1.25;
+          const rowPrompt = promptVisible ? promptPx * 1.7 : 0;
+          const boxH = Math.round(rowTitle + rowLabel + rowScore + rowPrompt);
 
           // Clamp the CENTRE, not a corner, so scaling about the centre stays put.
           let ccx = bcx;
@@ -534,13 +631,25 @@ export function MusicalChairsScreen({
 
           // Small caps label, then the number. Mono for the number because it is
           // data, and it keeps digits from shifting width as the score changes.
+          const top = -boxH / 2;
           ctx.font = monoFont(labelPx, 'bold');
           ctx.fillStyle = withAlpha(palette.playfulBright, 0.7);
-          ctx.fillText(RISK_LABEL, 0, -boxH / 2 + titlePx * 1.5 + labelPx * 0.9);
+          ctx.fillText(RISK_LABEL, 0, top + rowTitle + labelPx * 0.9);
 
           ctx.font = monoFont(scorePx, 'bold');
           ctx.fillStyle = palette.textBright;
-          ctx.fillText(scoreText, 0, boxH / 2 - scorePx * 0.52);
+          ctx.fillText(scoreText, 0, top + rowTitle + rowLabel + scorePx * 0.7);
+
+          // The question, last, directly above the Yes/No buttons in the nav row.
+          if (promptVisible) {
+            ctx.font = playfulIntlFont(promptPx);
+            ctx.fillStyle = withAlpha(palette.textBright, 0.92);
+            ctx.fillText(
+              CONFIRM_PROMPT,
+              0,
+              top + rowTitle + rowLabel + rowScore + promptPx * 0.85,
+            );
+          }
 
           ctx.restore();
         }
@@ -610,19 +719,19 @@ export function MusicalChairsScreen({
         >
           Auto {autoEnabled ? 'On' : 'Off'}
         </button>
-        {/* Confirm / reject prompt. Offered on the reveal only, and withdrawn the
-            moment the seat is settled either way. Reject stays pressable at 0 left
-            so the third rejection — the force-lock beat — is reachable. */}
-        {showingReveal && canOfferRedo(redoUsed, settled) && (
+        {/* Gated on `awaitingAnswer` alone — nothing about which selection this is,
+            so it appears on the 1st, 2nd and 3rd identically. On the 3rd, No leads
+            to the force-lock instead of another round; the prompt itself is the
+            same. Withdrawn only once the seat is settled. */}
+        {/* Just the two answers here. The question itself is on the reveal card,
+            where the user is already looking — repeating it in the nav strip put
+            the same Malayalam line on screen twice. */}
+        {promptVisible && (
           <>
             <button className="primary" onClick={confirmSeat}>
-              Confirm Seat
+              {CONFIRM_YES}
             </button>
-            <button onClick={rejectSeat}>
-              {redosLeft(redoUsed) > 0
-                ? `Reject (${redosLeft(redoUsed)} redo${redosLeft(redoUsed) === 1 ? '' : 's'} left)`
-                : 'Reject (no redos left)'}
-            </button>
+            <button onClick={rejectSeat}>{CONFIRM_NO}</button>
           </>
         )}
       </div>
@@ -644,7 +753,7 @@ export function MusicalChairsScreen({
             ? `${pick.seatId} force-locked. ${FORCED_LOCK_TEXT}. No redos left.`
             : phase === 'locked'
               ? `${pick.seatId} locked in. ${REVEAL_TEXT}.`
-              : `Selection ${selectionNumber(redoUsed)}: ${pick.seatId}. Confirm, or reject with ${redosLeft(redoUsed)} redos left.`
+              : `Selection ${selectionNumber(redoUsed)}: ${pick.seatId}. ${CONFIRM_PROMPT} ${CONFIRM_YES} to lock it in, ${CONFIRM_NO} to try again. ${redosLeft(redoUsed)} redos left.`
           : ''}
       </p>
     </>

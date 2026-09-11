@@ -40,6 +40,10 @@
   --font-display: 'Bahnschrift SemiCondensed', 'Arial Narrow', sans-serif;
   --font-mono: 'JetBrains Mono', Consolas, monospace;
   --font-playful: 'Comic Sans MS', cursive;
+  /* Comic Sans has no Malayalam glyphs; the later families cover them via
+     per-glyph fallback. Overwritten at runtime from design/tokens.ts. */
+  --font-playful-intl: 'Comic Sans MS', 'Nirmala UI', 'Malayalam Sangam MN',
+    'Noto Sans Malayalam', sans-serif;
 
   color-scheme: dark;
 }
@@ -134,6 +138,8 @@ header.hud .tag {
 .nav-spacer {
   flex: 1;
 }
+
+
 
 /* ============================== buttons ============================== */
 

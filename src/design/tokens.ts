@@ -270,6 +270,7 @@ export function applyDesignTokens(root: HTMLElement = document.documentElement):
     '--font-display': FONT_DISPLAY,
     '--font-mono': FONT_MONO,
     '--font-playful': FONT_PLAYFUL,
+    '--font-playful-intl': FONT_PLAYFUL_INTL,
 
     '--radius': `${RADIUS}px`,
     '--space-xs': `${SPACE.xs}px`,
