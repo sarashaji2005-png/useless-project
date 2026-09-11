@@ -17,7 +17,7 @@ Hide n Seat is a real-time computer vision system that solves the eternal studen
 Every student intuitively knows some seats are "safer" than others — back rows, blind spots, seats blocked by a tall classmate — but nobody has ever rigorously quantified this. Students have been making this critical life decision on vibes alone, with zero data-driven backing. Unacceptable.
 
 ## The Solution (that nobody asked for)
-A live webcam feed running real object detection identifies every chair and person in the room, computes a genuine line-of-sight visibility score for each seat factoring in the teacher's position and occlusion from other people ("Meat Shields") sitting in the way, and displays it directly on the video feed as a color-coded, emoji-rated badge (😎 low risk → 🫣 maximum exposure). A second screen turns entering-class into an actual musical-chairs game: music plays, a hat graphic hops between detected chairs, and when the music stops the system allots the safest currently-vacant seat to whoever just walked in — complete with a dramatic reveal, a confirm-or-reroll option, and a system that eventually just tells you to sit down already.
+A live webcam feed running real object detection identifies every chair and person in the room, computes a genuine line-of-sight visibility score for each seat factoring in the teacher's position and occlusion from other people ("Meat Shields") sitting in the way, and displays it directly on the video feed as a color-coded, emoji-rated badge. A second screen turns entering-class into an actual musical-chairs game: music plays, a hat graphic hops between detected chairs, and when the music stops the system allots the safest currently-vacant seat to whoever just walked in — complete with a dramatic reveal, a confirm-or-reroll option, and a system that eventually just tells you to sit down already.
 
 ## Technical Details
 
@@ -48,28 +48,78 @@ Open the local URL shown in the terminal (typically `http://localhost:5173`) in 
 
 ## Project Documentation
 
-## Hide n Seat™ — Architecture Workflow
-
-Camera feed (live classroom video)
-        ↓
-Object detection — COCO-SSD: chair + person
-        ↓
-Tracking — stable IDs across frames
-        ↓
-Occupancy matching — person to chair mapping
-        ↓
-Visibility scoring — FOV + occlusion ("meat shield")
-        ↓
-Shared detection state (read by both screens)
-        ↓
-   ┌────────────────────────┴────────────────────────┐
-   ↓                                                   ↓
-Screen 1: Surveillance                      Screen 2: Musical Chairs
-Emoji risk badges on live feed              Music → roaming indicator →
-                                             random selection → confirm/
-                                             redo (max 2) → reveal
-
-### For Software:
+                 ┌──────────────────────────┐
+                 │     LIVE CAMERA FEED     │
+                 │   Classroom Video Input  │
+                 └────────────┬─────────────┘
+                              │
+                              ▼
+                 ┌──────────────────────────┐
+                 │    OBJECT DETECTION      │
+                 │       COCO-SSD           │
+                 │                          │
+                 │   Detects:               │
+                 │   • Person               │
+                 │   • Chair                │
+                 └────────────┬─────────────┘
+                              │
+                              ▼
+                 ┌──────────────────────────┐
+                 │        TRACKING          │
+                 │                          │
+                 │ Stable IDs across frames │
+                 │                          │
+                 │ Person #01 → Person #01  │
+                 │ Person #02 → Person #02  │
+                 └────────────┬─────────────┘
+                              │
+                              ▼
+                 ┌──────────────────────────┐
+                 │    OCCUPANCY MATCHING    │
+                 │                          │
+                 │   Person → Chair         │
+                 │                          │
+                 │ Person #01 → Seat C14    │
+                 │ Person #02 → Seat C15    │
+                 └────────────┬─────────────┘
+                              │
+                              ▼
+                 ┌──────────────────────────┐
+                 │    VISIBILITY ENGINE     │
+                 │                          │
+                 │   FOV + Occlusion        │
+                 │   + Chair Position       │
+                 │   + People Ahead         │
+                 │                          │
+                 │   "Meat Shield" Analysis │
+                 └────────────┬─────────────┘
+                              │
+                              ▼
+              ┌─────────────────────────────────┐
+              │   SHARED DETECTION STATE        │
+              │                                 │
+              │ Seat + Person + Position        │
+              │ Visibility + Occlusion + Risk   │
+              └───────────────┬─────────────────┘
+                              │
+                ┌─────────────┴─────────────┐
+                │                           │
+                ▼                           ▼
+   ┌─────────────────────────┐   ┌─────────────────────────┐
+   │       SCREEN 01         │   │       SCREEN 02         │
+   │      SURVEILLANCE       │   │    MUSICAL CHAIRS       │
+   │                         │   │                         │
+   │ Live Classroom Feed     │   │ Music Starts            │
+   │ + Detection Boxes       │   │        ↓                │
+   │ + Tracking IDs          │   │ Roaming Eye / Indicator  │
+   │ + Seat Mapping          │   │        ↓                │
+   │ + Emoji Risk Badges     │   │ Random Selection         │
+   │ + Visibility Score      │   │        ↓                │
+   │                         │   │ Confirm / Redo           │
+   │                         │   │   (Max 2 Redos)          │
+   │                         │   │        ↓                │
+   │                         │   │ Seat Reveal              │
+   └─────────────────────────┘   └─────────────────────────┘
 
 #### Screenshots
 
