@@ -19,8 +19,24 @@ export const MAX_MATCH_DISTANCE_FRAC = 0.05;
 /** Placeholder for the audit; tuned below. */
 export const PERSON_MATCH_DISTANCE_FRAC = 0.05;
 
-/** Consecutive sightings before a track is trusted and drawn solid. */
-export const CONFIRM_HITS = 2;
+/**
+ * Consecutive sightings before a track is trusted and drawn solid.
+ *
+ * PER CLASS, and the asymmetry is deliberate:
+ *
+ *  chair: 1 — a chair does not move. If the model saw it once it is almost
+ *    certainly there, and DROP_AFTER_MISSES already stops it flickering out.
+ *    Requiring two consecutive hits was actively costing coverage: a chair that
+ *    detection caught on alternating ticks never confirmed, and only confirmed
+ *    chairs get scored and drawn, so it never got a badge at all.
+ *
+ *  person: 2 — people move, and a false-positive person fires the Screen 2
+ *    auto-trigger. Worth one tick of latency to avoid rounds starting at random.
+ */
+export const CONFIRM_HITS: Record<TrackClass, number> = {
+  chair: 1,
+  person: 2,
+};
 
 /** Consecutive misses before a track is deleted. */
 export const DROP_AFTER_MISSES = 4;
@@ -65,9 +81,11 @@ export class CentroidTracker {
 
   constructor(
     private cls: TrackClass,
+    // The default reads CONFIRM_HITS for THIS class — a later default parameter
+    // may reference an earlier one, so `cls` is in scope here.
     private config = {
       maxMatchDistanceFrac: MAX_MATCH_DISTANCE_FRAC,
-      confirmHits: CONFIRM_HITS,
+      confirmHits: CONFIRM_HITS[cls],
       dropAfterMisses: DROP_AFTER_MISSES,
       boxSmoothing: BOX_SMOOTHING,
     },

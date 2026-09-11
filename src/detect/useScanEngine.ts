@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CentroidTracker, resetIdCounter } from '../core/tracker';
 import { computeOccupancy } from '../core/occupancy';
 import { computeScreenVisibility, inferFacingDeg } from '../core/screenVisibility';
-import { roomReferencePoint } from '../core/roomConfig';
 import { computeSuggestions, SuggestionStabiliser } from '../core/suggestions';
-import { logRawDetections, logTick } from '../core/diagnostics';
 import { detectFrame, loadDetector, type DetectorStatus } from './detector';
 import type { Point, TickResult } from '../models/types';
 
@@ -78,8 +76,7 @@ export function useScanEngine(grabFrame: () => HTMLCanvasElement | null) {
 
       // Fixed reference point instead of a user click. Derived from frame size, so
       // it lands in the same relative spot at any camera resolution.
-      const teacherPoint = roomReferencePoint(frame.width, frame.height);
-      const facingDeg = inferFacingDeg(teacherPoint, confirmedChairs);
+  
 
       // No longer gated on anything: every confirmed chair is always scored.
       const seatStates = computeScreenVisibility({

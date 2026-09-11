@@ -22,8 +22,22 @@ import { LandingScreen } from './components/landing/LandingScreen';
 
 type Screen = 'landing' | 'surveillance' | 'musicalChair';
 
+/**
+ * Dev-only deep link, e.g. `?screen=musicalChair`.
+ *
+ * Exists so a screen can be captured headlessly without a camera and without
+ * clicking through the flow. Gated on `import.meta.env.DEV`, so the production
+ * bundle always starts at the landing screen no matter what the URL says.
+ */
+function initialScreen(): Screen {
+  if (!import.meta.env.DEV) return 'landing';
+
+  const want = new URLSearchParams(window.location.search).get('screen');
+  return want === 'surveillance' || want === 'musicalChair' ? want : 'landing';
+}
+
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('landing');
+  const [screen, setScreen] = useState<Screen>(initialScreen);
 
   const camera = useCamera();
   const engine = useScanEngine(camera.grabFrame);

@@ -4,6 +4,16 @@
  *
  * Run: npm run verify:rounds
  */
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  canOfferRedo,
+  FORCED_LOCK_TEXT,
+  nextRedoAction,
+  REDO_LIMIT,
+  redosLeft,
+  selectionNumber,
+} from '../src/core/seatConfirm';
 import {
   CAPTION_DELAY_MS,
   CAPTION_MS,
@@ -794,6 +804,94 @@ section('5. SIGHT RADIUS SENSITIVITY (carried over)');
   check('full-diagonal radius: angle dominates, FAR seat scores higher (inverts)',
     wide.far > wide.near,
     `near ${wide.near.toFixed(1)} vs far ${wide.far.toFixed(1)} @ r=${diagonal.toFixed(0)}`);
+}
+
+// =========================================================================
+section('9. SEAT CONFIRM / REDO WRAPPER');
+
+{
+  // Walk a whole turn the way a user would, threading the count through, because
+  // the off-by-one is the feature: two redos, and the THIRD rejection force-locks.
+  let used = 0;
+  check('user starts on selection 1', selectionNumber(used) === 1, `#${selectionNumber(used)}`);
+
+  const first = nextRedoAction(used);
+  check('1st rejection re-runs the round', first.kind === 'redo', `-> ${first.kind}`);
+  if (first.kind === 'redo') used = first.count;
+  check('that puts the user on selection 2', selectionNumber(used) === 2, `#${selectionNumber(used)}`);
+
+  const second = nextRedoAction(used);
+  check('2nd rejection re-runs the round', second.kind === 'redo', `-> ${second.kind}`);
+  if (second.kind === 'redo') used = second.count;
+  check('that puts the user on selection 3', selectionNumber(used) === 3, `#${selectionNumber(used)}`);
+
+  check('exactly REDO_LIMIT redos were granted',
+    used === REDO_LIMIT, `used ${used}, limit ${REDO_LIMIT}`);
+
+  const third = nextRedoAction(used);
+  check('3rd rejection FORCE-LOCKS instead of running a 4th round',
+    third.kind === 'forceLock', `-> ${third.kind}`);
+
+  // The control has to survive to the spent state, or there is nothing to reject
+  // with and the force-lock beat can never be reached.
+  check('prompt still offered on selection 3, so the 3rd rejection is possible',
+    canOfferRedo(REDO_LIMIT, false), `used ${REDO_LIMIT}, not settled`);
+  check('prompt withdrawn once the seat is settled — hard stop, no buttons',
+    !canOfferRedo(REDO_LIMIT, true), 'settled -> no confirm/reject');
+  check('confirming early also withdraws the prompt',
+    !canOfferRedo(0, true) && !canOfferRedo(1, true), 'locked at any count');
+
+  check('redo labels count down 2, 1, 0',
+    redosLeft(0) === 2 && redosLeft(1) === 1 && redosLeft(2) === 0,
+    `${redosLeft(0)}, ${redosLeft(1)}, ${redosLeft(2)}`);
+  check('remaining never goes negative', redosLeft(99) === 0, `${redosLeft(99)}`);
+
+  // The reset is what makes the allowance per-person rather than per-session.
+  check('a new person restores the full allowance',
+    nextRedoAction(0).kind === 'redo' && redosLeft(0) === REDO_LIMIT,
+    `reset -> ${redosLeft(0)} left`);
+
+  // Consolidation: exactly one ending caption, and it is not either retired one.
+  check('forced-lock caption is MADUTHILLE BROO',
+    FORCED_LOCK_TEXT === 'MADUTHILLE BROO', FORCED_LOCK_TEXT);
+  // Scan the shipped source rather than asserting against the constant, which
+  // would only ever prove the constant is itself. This is what actually enforces
+  // "only one version of this flow exists".
+  const retired: Array<[string, string]> = [
+    ['\u0065vdelum', 'original confirm/redo ending'],
+    ['iriyadoo', 'original confirm/redo ending'],
+    ['\u0d2e\u0d1f\u0d41\u0d24\u0d4d\u0d24\u0d41', 'rescan-era Malayalam fatigue line'],
+    ['MADUTHU BROO', 'rescan-era ending'],
+    ['nextRescanAction', 'rescan-era logic'],
+    ['canOfferRescan', 'rescan-era logic'],
+  ];
+
+  const srcFiles: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (/\.(ts|tsx|css)$/.test(e.name)) srcFiles.push(full);
+    }
+  };
+  walk(join(process.cwd(), 'src'));
+
+  check('src/ tree was actually scanned', srcFiles.length > 10, `${srcFiles.length} files`);
+
+  for (const [needle, why] of retired) {
+    const hits = srcFiles.filter((f) => readFileSync(f, 'utf8').includes(needle));
+    check(`retired ${why} absent from src/`,
+      hits.length === 0,
+      hits.length === 0 ? 'clean' : hits.map((h) => h.split(/[\\/]/).pop()).join(', '));
+  }
+
+  check('the old rescan module is deleted',
+    !existsSync(join(process.cwd(), 'src/core/rescan.ts')), 'src/core/rescan.ts');
+  // Compared as strings: TS narrows both consts to literal types and would
+  // otherwise reject the comparison as provably true.
+  check('seat-fixed and forced-lock end-states have different captions',
+    (REVEAL_TEXT as string) !== (FORCED_LOCK_TEXT as string),
+    `confirm "${REVEAL_TEXT}" vs forced "${FORCED_LOCK_TEXT}"`);
 }
 
 // =========================================================================

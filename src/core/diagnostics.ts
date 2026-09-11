@@ -210,3 +210,63 @@ export function logRawDetections(
   );
   console.groupEnd();
 }
+
+/**
+ * Chair-coverage snapshot, for confirming detection sees the WHOLE room.
+ *
+ * Called at intervals across the Musical Chairs window rather than once, because
+ * the failure being chased is intermittent: a chair that appears on some ticks
+ * and not others looks like "barely any chairs" while every individual tick looks
+ * fine. Sampling repeatedly makes the churn visible.
+ *
+ * `stable` counts chair ids present in EVERY sample so far — that is the number to
+ * compare against the real chair count in the room.
+ */
+export function logChairCoverage(
+  label: string,
+  result: TickResult | null,
+  seenEverySample: readonly string[],
+): void {
+  if (!DIAGNOSTICS_ENABLED) return;
+
+  if (!result) {
+    console.log(`[hidenseat] coverage ${label}: no tick yet`);
+    return;
+  }
+
+  const confirmed = result.chairs.filter((c) => c.confirmed);
+  const unconfirmed = result.chairs.length - confirmed.length;
+  const occupiedIds = new Set(
+    result.seatStates.filter((s) => s.occupied).map((s) => s.seatId),
+  );
+  const vacant = confirmed.filter((c) => !occupiedIds.has(c.id));
+
+  console.log(
+    `[hidenseat] coverage ${label} — tracked ${result.chairs.length} ` +
+      `(confirmed ${confirmed.length}, acquiring ${unconfirmed}) · ` +
+      `vacant ${vacant.length} · scored ${result.seatStates.length} · ` +
+      `stable-across-samples ${seenEverySample.length}`,
+  );
+  console.log(`             ids: ${confirmed.map((c) => c.id).join(' ') || '(none)'}`);
+}
+
+/**
+ * The allotment, logged at music stop.
+ *
+ * Records the pool the seat was drawn from and whether the vacant-only path or
+ * the all-chairs fallback fired, so a suspicious result can be traced back to the
+ * pool rather than to the draw.
+ */
+export function logSelection(
+  pick: { seatId: string; poolSize: number; fromVacant: boolean },
+  score: number | null,
+  stableChairIds: readonly string[],
+): void {
+  if (!DIAGNOSTICS_ENABLED) return;
+
+  console.log(
+    `[hidenseat] ALLOTTED ${pick.seatId} — risk ${score === null ? 'unscored' : formatScore(score)} · ` +
+      `drawn from ${pick.poolSize} ${pick.fromVacant ? 'VACANT' : 'ALL (no vacant seats)'} · ` +
+      `${stableChairIds.length} chairs stable across the whole window`,
+  );
+}

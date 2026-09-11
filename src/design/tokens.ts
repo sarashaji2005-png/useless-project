@@ -165,6 +165,26 @@ export const FONT_MONO =
 export const FONT_PLAYFUL =
   "'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', 'Comic Neue', cursive";
 
+/**
+ * Playful stack extended to cover MALAYALAM.
+ *
+ * Comic Sans MS contains no Malayalam glyphs — used alone it renders
+ * "കസേര കണ്ടില്ലേ?" as tofu boxes. Browsers fall back per GLYPH rather than per
+ * element, so listing a Malayalam-capable family after the cartoon one gives
+ * Latin characters Comic Sans and Malayalam characters Nirmala UI. Canvas
+ * `fillText` and `measureText` honour the same fallback chain.
+ *
+ * Nirmala UI ships with Windows 8+, Malayalam Sangam MN with macOS. Still no
+ * webfont, so nothing here can fail to load mid-demo.
+ *
+ * HONEST LIMITATION: there is no cartoonish Malayalam system font, so the
+ * Malayalam glyphs render in a clean sans and will not look hand-drawn the way
+ * the Latin reveal text does. Fixing that properly needs a bundled display face
+ * with Malayalam coverage, which reintroduces the webfont failure mode.
+ */
+export const FONT_PLAYFUL_INTL =
+  "'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', 'Nirmala UI', 'Malayalam Sangam MN', 'Noto Sans Malayalam', sans-serif";
+
 // ------------------------------------------------------------- geometry
 
 /** One corner treatment everywhere. Near-sharp, so it reads as equipment
@@ -194,6 +214,11 @@ export function monoFont(px: number, weight = ''): string {
 }
 export function playfulFont(px: number, weight = 'bold'): string {
   return `${weight} ${px}px ${FONT_PLAYFUL}`;
+}
+
+/** Playful, but able to render Malayalam. Use for any non-Latin reveal copy. */
+export function playfulIntlFont(px: number, weight = 'bold'): string {
+  return `${weight} ${px}px ${FONT_PLAYFUL_INTL}`;
 }
 
 // ------------------------------------------------- CSS variable injection

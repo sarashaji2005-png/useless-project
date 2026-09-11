@@ -1,3 +1,4 @@
+import { decodeCandidates, suppressPerClass } from './postprocess';
 import type { Detection, TrackClass } from '../models/types';
 
 // ===========================================================================
@@ -34,7 +35,7 @@ export const PERSON_MIN_SCORE = 0.35;
  * The tracker's confirmation requirement absorbs most of those, since junk
  * detections rarely persist in the same place for consecutive ticks.
  */
-export const CHAIR_MIN_SCORE = 0.2;
+export const CHAIR_MIN_SCORE = 0.15;
 
 /**
  * Max boxes per frame.
@@ -72,13 +73,25 @@ export const CLASS_THRESHOLDS: Record<TrackClass, number> = {
 
 // ===========================================================================
 
+/**
+ * `model` is coco-ssd's underlying tfjs GraphModel. We reach for it because
+ * `detect()` cannot express what we need — see src/detect/postprocess.ts for the
+ * full reasoning. Typed loosely and guarded at the call site so a version bump
+ * falls back to `detect()` rather than throwing.
+ */
 type CocoModel = {
   detect: (
     input: HTMLCanvasElement | HTMLVideoElement | HTMLImageElement,
     maxNumBoxes?: number,
     minScore?: number,
   ) => Promise<{ bbox: [number, number, number, number]; class: string; score: number }[]>;
+  model?: {
+    executeAsync: (input: unknown) => Promise<unknown>;
+  };
 };
+
+/** Set false to force the old library path, for A/B comparison on real footage. */
+export const USE_OWN_POSTPROCESS = true;
 
 export type DetectorStatus = 'idle' | 'loading' | 'ready' | 'failed';
 
@@ -121,6 +134,8 @@ export interface RawDetectionResult {
   rawPeople: number;
   /** Highest chair score this tick. The key number for threshold tuning. */
   bestChairScore: number;
+  /** True when our own per-class suppression ran, false if we fell back. */
+  usedOwnPostprocess: boolean;
   /**
    * EVERY kept-class detection with its score, including ones below the
    * per-class threshold. This is the raw evidence for "is a real person being
@@ -131,12 +146,101 @@ export interface RawDetectionResult {
   inferenceMs: number;
 }
 
+/** Shape of what our own post-processing hands back, before per-class cuts. */
+interface RawBox {
+  bbox: [number, number, number, number];
+  class: string;
+  score: number;
+}
+
+/**
+ * Run the model and suppress duplicates ourselves.
+ *
+ * Returns null if anything about the tensors is not what we expect, so the caller
+ * can fall back to coco-ssd's own `detect()`.
+ */
+async function detectWithOwnPostprocess(
+  model: CocoModel,
+  frame: HTMLCanvasElement,
+): Promise<RawBox[] | null> {
+  if (!model.model?.executeAsync) return null;
+
+  const tf = await import('@tensorflow/tfjs');
+
+  let result: unknown;
+  const batched = tf.tidy(() => tf.expandDims(tf.browser.fromPixels(frame)));
+
+  try {
+    result = await model.model.executeAsync(batched);
+  } finally {
+    batched.dispose();
+  }
+
+  // coco-ssd returns [scores, boxes]; anything else and we bail to the library.
+  if (!Array.isArray(result) || result.length < 2) {
+    tf.dispose(result as never);
+    return null;
+  }
+
+  const scoresTensor = result[0] as { shape: number[]; dataSync: () => Float32Array };
+  const boxesTensor = result[1] as { shape: number[]; dataSync: () => Float32Array };
+
+  if (scoresTensor?.shape?.length !== 3 || boxesTensor?.shape?.length !== 4) {
+    tf.dispose(result as never);
+    return null;
+  }
+
+  const numBoxes = scoresTensor.shape[1];
+  const numClasses = scoresTensor.shape[2];
+  const scores = scoresTensor.dataSync();
+  const boxes = boxesTensor.dataSync();
+  tf.dispose(result as never);
+
+  const candidates = decodeCandidates(
+    scores,
+    boxes,
+    numBoxes,
+    numClasses,
+    frame.width,
+    frame.height,
+  );
+
+  // The whole point: per-class suppression with an IoU threshold that is
+  // independent of the score threshold.
+  const kept = suppressPerClass(candidates);
+
+  return kept.map((c) => ({
+    bbox: [c.box.px, c.box.py, c.box.width, c.box.height] as [number, number, number, number],
+    // Map back to a COCO-ish label so the code below is shared with the fallback.
+    class: c.cls,
+    score: c.score,
+  }));
+}
+
 export async function detectFrame(
   model: CocoModel,
   frame: HTMLCanvasElement,
 ): Promise<RawDetectionResult> {
   const t0 = performance.now();
-  const raw = await model.detect(frame, MAX_BOXES, MODEL_MIN_SCORE);
+
+  let raw: RawBox[] | null = null;
+  let usedOwnPostprocess = false;
+
+  if (USE_OWN_POSTPROCESS) {
+    try {
+      raw = await detectWithOwnPostprocess(model, frame);
+      usedOwnPostprocess = raw !== null;
+    } catch (err) {
+      // Never let a post-processing change take detection down entirely.
+      console.warn('[hidenseat] own post-process failed, falling back to detect()', err);
+      raw = null;
+    }
+  }
+
+  if (!raw) {
+    raw = (await model.detect(frame, MAX_BOXES, MODEL_MIN_SCORE)) as RawBox[];
+  }
+
   const inferenceMs = performance.now() - t0;
 
   const detections: Detection[] = [];
@@ -174,6 +278,7 @@ export async function detectFrame(
     rawChairs,
     rawPeople,
     bestChairScore,
+    usedOwnPostprocess,
     scored,
     inferenceMs,
   };
