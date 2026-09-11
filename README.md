@@ -48,78 +48,81 @@ Open the local URL shown in the terminal (typically `http://localhost:5173`) in 
 
 ## Project Documentation
 
-                 ┌──────────────────────────┐
-                 │     LIVE CAMERA FEED     │
-                 │   Classroom Video Input  │
-                 └────────────┬─────────────┘
-                              │
-                              ▼
-                 ┌──────────────────────────┐
-                 │    OBJECT DETECTION      │
-                 │       COCO-SSD           │
-                 │                          │
-                 │   Detects:               │
-                 │   • Person               │
-                 │   • Chair                │
-                 └────────────┬─────────────┘
-                              │
-                              ▼
-                 ┌──────────────────────────┐
-                 │        TRACKING          │
-                 │                          │
-                 │ Stable IDs across frames │
-                 │                          │
-                 │ Person #01 → Person #01  │
-                 │ Person #02 → Person #02  │
-                 └────────────┬─────────────┘
-                              │
-                              ▼
-                 ┌──────────────────────────┐
-                 │    OCCUPANCY MATCHING    │
-                 │                          │
-                 │   Person → Chair         │
-                 │                          │
-                 │ Person #01 → Seat C14    │
-                 │ Person #02 → Seat C15    │
-                 └────────────┬─────────────┘
-                              │
-                              ▼
-                 ┌──────────────────────────┐
-                 │    VISIBILITY ENGINE     │
-                 │                          │
-                 │   FOV + Occlusion        │
-                 │   + Chair Position       │
-                 │   + People Ahead         │
-                 │                          │
-                 │   "Meat Shield" Analysis │
-                 └────────────┬─────────────┘
-                              │
-                              ▼
-              ┌─────────────────────────────────┐
-              │   SHARED DETECTION STATE        │
-              │                                 │
-              │ Seat + Person + Position        │
-              │ Visibility + Occlusion + Risk   │
-              └───────────────┬─────────────────┘
-                              │
-                ┌─────────────┴─────────────┐
-                │                           │
-                ▼                           ▼
-   ┌─────────────────────────┐   ┌─────────────────────────┐
-   │       SCREEN 01         │   │       SCREEN 02         │
-   │      SURVEILLANCE       │   │    MUSICAL CHAIRS       │
-   │                         │   │                         │
-   │ Live Classroom Feed     │   │ Music Starts            │
-   │ + Detection Boxes       │   │        ↓                │
-   │ + Tracking IDs          │   │ Roaming Eye / Indicator  │
-   │ + Seat Mapping          │   │        ↓                │
-   │ + Emoji Risk Badges     │   │ Random Selection         │
-   │ + Visibility Score      │   │        ↓                │
-   │                         │   │ Confirm / Redo           │
-   │                         │   │   (Max 2 Redos)          │
-   │                         │   │        ↓                │
-   │                         │   │ Seat Reveal              │
-   └─────────────────────────┘   └─────────────────────────┘
+┌──────────────────────────────┐
+│       LIVE CAMERA FEED       │
+│     Classroom Video Input    │
+└──────────────┬───────────────┘
+               │
+               ▼
+┌──────────────────────────────┐
+│      OBJECT DETECTION        │
+│         COCO-SSD             │
+│                              │
+│ Detects:                     │
+│ • Person                     │
+│ • Chair                      │
+└──────────────┬───────────────┘
+               │
+               ▼
+┌──────────────────────────────┐
+│          TRACKING            │
+│                              │
+│ Stable IDs across frames     │
+│                              │
+│ Person #01 → Person #01      │
+│ Person #02 → Person #02      │
+└──────────────┬───────────────┘
+               │
+               ▼
+┌──────────────────────────────┐
+│      OCCUPANCY MATCHING      │
+│                              │
+│ Person → Chair               │
+│                              │
+│ Person #01 → Seat C14        │
+│ Person #02 → Seat C15        │
+└──────────────┬───────────────┘
+               │
+               ▼
+┌──────────────────────────────┐
+│      VISIBILITY ENGINE       │
+│                              │
+│ FOV + Occlusion              │
+│ + Chair Position             │
+│ + People Ahead               │
+│                              │
+│ "Meat Shield" Analysis       │
+└──────────────┬───────────────┘
+               │
+               ▼
+┌──────────────────────────────────┐
+│      SHARED DETECTION STATE      │
+│                                  │
+│ Seat + Person + Position         │
+│ Visibility + Occlusion + Risk    │
+└────────────────┬─────────────────┘
+                 │
+          ┌──────┴──────┐
+          │             │
+          ▼             ▼
+┌──────────────────┐  ┌────────────────────────┐
+│     SCREEN 01    │  │       SCREEN 02        │
+│    SURVEILLANCE  │  │     MUSICAL CHAIRS     │
+│                  │  │                        │
+│ Live Classroom   │  │ Music Starts           │
+│ Feed             │  │        ↓               │
+│       +          │  │ Roaming Eye / Indicator │
+│ Detection Boxes  │  │        ↓               │
+│       +          │  │ Random Selection        │
+│ Tracking IDs     │  │        ↓               │
+│       +          │  │ Confirm / Redo          │
+│ Seat Mapping     │  │     (Max 2 Redos)       │
+│       +          │  │        ↓               │
+│ Emoji Risk       │  │ Seat Reveal             │
+│ Badges           │  │                        │
+│       +          │  │                        │
+│ Visibility Score │  │                        │
+└──────────────────┘  └────────────────────────┘                 
 
 #### Screenshots
 
