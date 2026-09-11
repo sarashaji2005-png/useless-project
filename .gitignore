@@ -1,0 +1,32 @@
+# Dependencies — restored with `npm install`, never committed.
+node_modules/
+
+# Build output.
+dist/
+*.tsbuildinfo
+
+# Local env / editor noise.
+.env
+.env.local
+.DS_Store
+Thumbs.db
+
+# ---------------------------------------------------------------------------
+# Audio assets.
+#
+# Deliberately excluded. These are clips of copyrighted film audio, and this is a
+# public repository — publishing them puts them in the git history where removing
+# them later needs a history rewrite.
+#
+# This also matches the project's own documented intent: public/sounds/README.md
+# already states the file "is NOT in the repo and cannot be generated — it has to
+# be dropped in by hand", and the app handles a missing file gracefully (the round
+# runs silently, no crash).
+#
+# The README itself IS committed, so anyone cloning knows what to drop in.
+# ---------------------------------------------------------------------------
+public/sounds/*.mp3
+public/sounds/*.wav
+public/sounds/*.m4a
+public/sounds/*.ogg
+!public/sounds/README.md
