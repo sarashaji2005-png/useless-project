@@ -32,7 +32,14 @@ import {
 import type { ScanEngineState } from '../detect/useScanEngine';
 import type { TickResult } from '../models/types';
 
-const MUSIC_SRC = '/sounds/cid-moosa.mp3';
+/**
+ * Built from BASE_URL, not a leading slash.
+ *
+ * On GitHub Pages the app is served from /useless-project/, so '/sounds/...' would
+ * resolve against the domain root and 404. BASE_URL is '/' in dev, so this is
+ * unchanged locally.
+ */
+const MUSIC_SRC = `${import.meta.env.BASE_URL}sounds/cid-moosa.mp3`;
 
 /** Fixed round length. Audio is cut here regardless of the file's real length. */
 const ROUND_MS = 10_000;
