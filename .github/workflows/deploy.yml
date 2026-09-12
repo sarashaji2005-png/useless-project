@@ -40,7 +40,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      # enablement lets this turn Pages on via the API using the workflow token,
+      # instead of needing someone to flip Settings -> Pages -> Source by hand.
+      # Requires the pages: write permission granted above.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
