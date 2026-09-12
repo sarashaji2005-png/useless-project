@@ -1,7 +1,6 @@
 # Hide n Seat 
 
-### Enterprise Gaze-Mitigation & Classroom Topology Optimization Engine
-
+##Note: Due to browser camera-permission and API constraints, this project runs locally (localhost) and isn't currently deployed to a public hosting URL — judges/reviewers should run it via the installation steps above rather than a live link.
 ## Basic Details
 
 ### Team Name: ADIDAS
