@@ -12,8 +12,10 @@ import react from '@vitejs/plugin-react';
  * Anything referencing a file in public/ must go through import.meta.env.BASE_URL
  * rather than a leading slash, for the same reason.
  */
-export default defineConfig(({ command }) => ({
-  base: command === 'build' ? '/useless-project/' : '/',
+export default defineConfig(({ command, isPreview }) => ({
+  // Build AND preview use the sub-path, so `vite preview` actually exercises what
+  // Pages will serve. Only the dev server stays at '/'.
+  base: command === 'build' || isPreview ? '/useless-project/' : '/',
   plugins: [react()],
   server: {
     port: 5173,
